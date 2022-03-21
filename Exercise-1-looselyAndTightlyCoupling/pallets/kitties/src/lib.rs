@@ -8,7 +8,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use frame_support::{
 		sp_runtime::traits::Hash,
-		traits::{ Randomness, Currency, tokens::ExistenceRequirement },
+		traits::{ Randomness, Currency, UnixTime , tokens::ExistenceRequirement },
 	};
 	use sp_io::hashing::blake2_128;
 	use scale_info::TypeInfo;
@@ -29,6 +29,7 @@ pub mod pallet {
 		pub price: Option<BalanceOf<T>>,
 		pub gender: Gender,
 		pub owner: AccountOf<T>,
+		pub timestamp: u64, 
 	}
 	// Enum declaration for Gender.
 	#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
@@ -44,7 +45,7 @@ pub mod pallet {
 
 	/// Configure the pallet by specifying the parameters and types it depends on.
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config  {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event:  From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The Currency handler for the Kitties pallet.
@@ -56,6 +57,7 @@ pub mod pallet {
 
 		/// The type of Randomness we want to specify for this pallet.
 		type KittyRandomness: Randomness<Self::Hash, Self::BlockNumber>;
+		type TimeProvider: UnixTime; 
 	}
 
 	// Errors.
@@ -128,9 +130,11 @@ pub mod pallet {
 		pub fn create_kitty(origin: OriginFor<T>) -> DispatchResult {
 			// ACTION #1: create_kitty
 			let sender = ensure_signed(origin)?; // <- add this line
-			let kitty_id = Self::mint(&sender, None, None)?; // <- add this line
+			let timestamp   =  T::TimeProvider::now().as_secs(); 
+			let kitty_id = Self::mint(&sender, None, None, timestamp)?; // <- add this line
+			
 			// Logging to the console
-			log::info!("A kitty is born with ID: {:?}.", kitty_id); // <- add this line
+			log::info!("A kitty is born with ID: {:?}", kitty_id); // <- add this line
 
 			// ACTION #4: Deposit `Created` event
 			Self::deposit_event(Event::Created(sender, kitty_id));
@@ -269,12 +273,14 @@ pub mod pallet {
 			owner: &T::AccountId,
 			dna: Option<[u8; 16]>,
 			gender: Option<Gender>,
+			timestamp: u64, 
 		) -> Result<T::Hash, Error<T>> {
 			let kitty = Kitty::<T> {
 				dna: dna.unwrap_or_else(Self::gen_dna),
 				price: None,
 				gender: gender.unwrap_or_else(Self::gen_gender),
 				owner: owner.clone(),
+				timestamp: timestamp.clone(),
 			};
 		
 			let kitty_id = T::Hashing::hash_of(&kitty);
